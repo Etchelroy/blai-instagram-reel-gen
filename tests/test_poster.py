@@ -96,3 +96,4 @@ def test_publish_instagram_reel():
     r3.raise_for_status = MagicMock()
 
     with patch("poster.requests.post", side_effect=[r1, r3
+# filename: .env.example
