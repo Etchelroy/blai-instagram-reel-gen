@@ -1,60 +1,64 @@
-import argparse
 import asyncio
-import logging
+import argparse
 import sys
-import os
+import logging
 from pathlib import Path
+from config import Config
+from ai_query import AIQuery
+from renderer import ReelRenderer
+from audio import AudioMixer
+from poster import InstagramPoster
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
 )
-logger = logging.getLogger("main")
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Instagram Reel Generator")
-    parser.add_argument("--prompt", required=True, help="Text prompt to query AI models")
-    parser.add_argument("--dry-run", action="store_true", help="Log payloads without posting")
-    parser.add_argument("--output", default="reel.mp4", help="Output video filename")
-    parser.add_argument("--music", default="background.mp3", help="Background music file path")
-    return parser.parse_args()
+logger = logging.getLogger(__name__)
 
 
 async def main():
-    args = parse_args()
-    logger.info(f"Starting reel generation for prompt: '{args.prompt}'")
-    logger.info(f"Mode: {'DRY RUN' if args.dry_run else 'LIVE'}")
+    parser = argparse.ArgumentParser(description='Instagram Reel Generator')
+    parser.add_argument('--prompt', required=True, help='Prompt to query AI models')
+    parser.add_argument('--dry-run', action='store_true', help='Run without posting to Instagram')
+    args = parser.parse_args()
 
-    from config import load_config
-    cfg = load_config()
+    try:
+        # Load config
+        config = Config()
+        logger.info('Config loaded successfully')
 
-    from ai_query import query_all_providers
-    logger.info("Querying all AI providers in parallel...")
-    responses = await query_all_providers(args.prompt)
-    logger.info(f"Received responses from {len(responses)} providers")
-    for provider, resp in responses.items():
-        logger.info(f"  [{provider}]: {resp[:80]}...")
+        # Query AI models in parallel
+        logger.info(f'Querying AI models with prompt: {args.prompt}')
+        ai_query = AIQuery(config)
+        ai_responses = await ai_query.query_all(args.prompt)
+        logger.info(f'Received {len(ai_responses)} AI responses')
 
-    from renderer import render_reel
-    logger.info("Rendering reel video...")
-    video_path = render_reel(args.prompt, responses, output_path=args.output)
-    logger.info(f"Reel rendered to: {video_path}")
+        # Render reel
+        logger.info('Rendering reel...')
+        renderer = ReelRenderer(config)
+        reel_path = renderer.render(args.prompt, ai_responses)
+        logger.info(f'Reel rendered: {reel_path}')
 
-    from audio import overlay_music
-    logger.info("Overlaying background music...")
-    final_path = overlay_music(video_path, args.music, output_path=args.output)
-    logger.info(f"Final video with audio: {final_path}")
+        # Add audio
+        logger.info('Adding audio...')
+        audio_mixer = AudioMixer(config)
+        final_reel_path = audio_mixer.mix(reel_path)
+        logger.info(f'Audio mixed: {final_reel_path}')
 
-    from poster import post_reel
-    logger.info("Posting reel to Instagram...")
-    result = post_reel(final_path, args.prompt, cfg, dry_run=args.dry_run)
-    if args.dry_run:
-        logger.info("DRY RUN complete. Instagram API payload logged above.")
-    else:
-        logger.info(f"Reel published successfully: {result}")
+        # Post to Instagram
+        logger.info('Posting to Instagram...')
+        poster = InstagramPoster(config)
+        result = await poster.post(final_reel_path, args.prompt, args.dry_run)
+        logger.info(f'Posting result: {result}')
+
+        logger.info('✓ Reel generation complete')
+        return 0
+
+    except Exception as e:
+        logger.error(f'Fatal error: {e}', exc_info=True)
+        return 1
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+if __name__ == '__main__':
+    exit_code = asyncio.run(main())
+    sys.exit(exit_code)
