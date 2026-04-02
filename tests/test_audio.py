@@ -1,73 +1,59 @@
 import pytest
-import os
-import shutil
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import Mock, patch
+from audio import AudioMixer
 
 
-def test_overlay_music_missing_file(tmp_path):
-    # Create a dummy video file
-    video_path = str(tmp_path / "input.mp4")
-    output_path = str(tmp_path / "output.mp4")
-    Path(video_path).write_bytes(b"fake video data")
-
-    from audio import overlay_music
-    result = overlay_music(video_path, str(tmp_path / "nonexistent.mp3"), output_path=output_path)
-    assert result == output_path
-    assert os.path.exists(output_path)
+@pytest.fixture
+def mock_config():
+    config = Mock()
+    config.music_file = 'background_music.mp3'
+    config.output_dir = Path('./test_output')
+    config.output_dir.mkdir(exist_ok=True)
+    return config
 
 
-def test_overlay_music_missing_file_same_path(tmp_path):
-    video_path = str(tmp_path / "reel.mp4")
-    Path(video_path).write_bytes(b"fake video data")
-
-    from audio import overlay_music
-    result = overlay_music(video_path, "nonexistent_music.mp3", output_path=video_path)
-    assert result == video_path
+def test_audio_mixer_init(mock_config):
+    """Test AudioMixer initialization."""
+    mixer = AudioMixer(mock_config)
+    assert mixer.config == mock_config
+    assert mixer.music_file == Path('background_music.mp3')
 
 
-def test_overlay_music_with_file(tmp_path):
-    video_path = str(tmp_path / "input.mp4")
-    music_path = str(tmp_path / "music.mp3")
-    output_path = str(tmp_path / "output.mp4")
-    Path(video_path).write_bytes(b"fake video data")
-    Path(music_path).write_bytes(b"fake audio data")
+@patch('audio.VideoFileClip')
+def test_mix_returns_output_path_when_music_missing(mock_video_clip, mock_config):
+    """Test that mix returns silent video when music file is missing."""
+    mock_video = Mock()
+    mock_video.duration = 10
+    mock_video.audio = None
+    mock_video.write_videofile = Mock()
+    mock_video_clip.return_value = mock_video
 
-    mock_video = MagicMock()
-    mock_video.duration = 20.0
-    mock_video.fps = 30
+    mixer = AudioMixer(mock_config)
+    result = mixer.mix('test_video.mp4')
 
-    mock_audio = MagicMock()
-    mock_audio.duration = 30.0
-    mock_audio.subclip.return_value = mock_audio
-    mock_audio.volumex.return_value = mock_audio
-
-    mock_final = MagicMock()
-    mock_video.set_audio.return_value = mock_final
-    mock_final.write_videofile = MagicMock()
-
-    import sys
-    mock_moviepy_editor = MagicMock()
-    mock_moviepy_editor.VideoFileClip.return_value = mock_video
-    mock_moviepy_editor.AudioFileClip.return_value = mock_audio
-
-    with patch.dict(sys.modules, {"moviepy.editor": mock_moviepy_editor}):
-        with patch("audio.VideoFileClip", return_value=mock_video):
-            with patch("audio.AudioFileClip", return_value=mock_audio):
-                from audio import overlay_music
-                result = overlay_music(video_path, music_path, output_path=output_path)
-                assert isinstance(result, str)
+    assert 'reel_final.mp4' in result
 
 
-def test_overlay_music_exception_fallback(tmp_path):
-    video_path = str(tmp_path / "input.mp4")
-    music_path = str(tmp_path / "music.mp3")
-    output_path = str(tmp_path / "output.mp4")
-    Path(video_path).write_bytes(b"fake video data")
-    Path(music_path).write_bytes(b"fake audio data")
+@patch('audio.VideoFileClip')
+@patch('audio.AudioFileClip')
+def test_mix_with_music_file_present(mock_audio_clip, mock_video_clip, mock_config):
+    """Test mix when music file is present."""
+    mock_video = Mock()
+    mock_video.duration = 10
+    mock_video.audio = Mock()
+    mock_video.write_videofile = Mock()
+    mock_video.set_audio = Mock(return_value=mock_video)
+    mock_video_clip.return_value = mock_video
 
-    with patch("audio.VideoFileClip", side_effect=Exception("moviepy error")):
-        from audio import overlay_music
-        result = overlay_music(video_path, music_path, output_path=output_path)
-        assert result == output_path
-        assert os.path.exists(output_path)
+    mock_music = Mock()
+    mock_music.duration = 5
+    mock_music.subclipped = Mock(return_value=mock_music)
+    mock_music.volumex = Mock(return_value=mock_music)
+    mock_audio_clip.return_value = mock_music
+
+    with patch('audio.Path.exists', return_value=True), \
+         patch('audio.CompositeAudioClip'):
+        mixer = AudioMixer(mock_config)
+        result = mixer.mix('test_video.mp4')
+        assert 'reel_final.mp4' in result
