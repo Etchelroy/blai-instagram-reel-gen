@@ -1,0 +1,26 @@
+# Instagram Reel Generator
+
+Generates Instagram Reels by querying 4 AI models in parallel (Claude, GPT-4o, Gemini, Groq), rendering responses as a branded video, and publishing to Instagram.
+
+## Features
+
+- **Parallel AI Queries**: Queries all 4 AI providers simultaneously with per-provider retry (3 attempts) and 30s timeout
+- **Smart Video Rendering**: Outputs 1080x1920 vertical video with intro card, 4 AI response cards, and fade transitions
+- **Optional Audio**: Overlays background music at low volume; gracefully falls back to silent video if no file provided
+- **AWS S3 Integration**: Uploads final reel to S3 before posting
+- **Instagram Publishing**: Posts reel directly to Instagram Business account via official API
+- **Dry-Run Mode**: Test end-to-end pipeline without posting to Instagram
+
+## Requirements
+
+- Python 3.9+
+- FFmpeg (for audio processing)
+- ffmpeg-python, opencv-python, pillow, tenacity
+- API keys for Anthropic, OpenAI, Google, and Groq
+- AWS S3 credentials
+- Instagram Business account with access token
+
+## Installation
+
+```bash
+pip install -r requirements.txt
