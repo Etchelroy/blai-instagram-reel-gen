@@ -1,0 +1,1 @@
+python main.py --prompt "Your question here" [--dry-run]
