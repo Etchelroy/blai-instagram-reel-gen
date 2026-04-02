@@ -1,1 +1,1 @@
-python main.py --prompt "Your question here" [--dry-run]
+pytest test_suite.py -v
