@@ -1,0 +1,32 @@
+# Instagram Reel Generator
+
+Production-ready Python application for generating AI-powered Instagram Reels with multi-provider LLM integration, automatic video rendering, and Graph API publishing.
+
+## Features
+
+- **Multi-Provider AI Querying**: Async parallel queries to Claude, GPT-4o, Gemini, and Llama/Groq
+- **Intelligent Retry Logic**: 3 automatic retries per provider with exponential backoff
+- **Timeout Handling**: 30-second timeout per provider with graceful fallbacks
+- **Video Rendering**: 1080x1920 vertical MP4 with MoviePy + Pillow
+  - Intro card with prompt
+  - Individual branded cards for each AI response
+  - Smooth fade transitions
+  - Brand accent color throughout
+  - 15-25 second total duration
+- **Audio Support**: Optional background music overlay with silent fallback
+- **Instagram Integration**: Direct Graph API posting via S3 upload
+- **Dry-Run Mode**: Full payload logging without actual posting
+- **Comprehensive Logging**: Structured logging at every step
+- **Full Test Suite**: Unit tests with mocked external calls
+
+## Installation
+
+### Prerequisites
+- Python 3.9+
+- FFmpeg (for MoviePy)
+
+### Setup
+
+1. **Clone and install dependencies:**
+```bash
+pip install -r requirements.txt
