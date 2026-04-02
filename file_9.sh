@@ -1,1 +1,1 @@
-cp .env.example .env
+python main.py --prompt "Is AI conscious?"
