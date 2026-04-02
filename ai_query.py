@@ -1,139 +1,126 @@
 import asyncio
 import logging
-import os
-from typing import Dict
+from typing import List, Dict
+from anthropic import Anthropic
+from openai import AsyncOpenAI
+import google.generativeai as genai
+from groq import Groq
+from tenacity import retry, stop_after_attempt, wait_exponential
 
-logger = logging.getLogger("ai_query")
-
-TIMEOUT = 30
-MAX_RETRIES = 3
-
-FALLBACK = "This AI provider did not return a response within the allowed time."
-
-PROVIDER_COLORS = {
-    "Claude": "#D4A574",
-    "GPT-4o": "#74C0FC",
-    "Gemini": "#A9D18E",
-    "Groq/Llama": "#C9B1FF",
-}
+logger = logging.getLogger(__name__)
 
 
-async def query_claude(prompt: str) -> str:
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        logger.warning("ANTHROPIC_API_KEY not set, returning fallback for Claude")
-        return FALLBACK
-    for attempt in range(1, MAX_RETRIES + 1):
+class AIQuery:
+    """Query multiple AI models in parallel with retry logic."""
+
+    def __init__(self, config):
+        self.config = config
+        self.anthropic_client = Anthropic(api_key=config.anthropic_api_key)
+        self.openai_client = AsyncOpenAI(api_key=config.openai_api_key)
+        self.groq_client = Groq(api_key=config.groq_api_key)
+        genai.configure(api_key=config.google_api_key)
+
+    async def query_all(self, prompt: str) -> List[Dict[str, str]]:
+        """Query all models in parallel."""
+        tasks = [
+            self._query_claude(prompt),
+            self._query_gpt4o(prompt),
+            self._query_gemini(prompt),
+            self._query_groq(prompt),
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        return [
+            {
+                'provider': name,
+                'text': text if not isinstance(text, Exception) else f'Error: {str(text)[:100]}',
+            }
+            for name, text in zip(['Claude', 'GPT-4o', 'Gemini', 'Groq'], results)
+        ]
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
+    async def _query_claude(self, prompt: str) -> str:
+        """Query Claude with retry."""
         try:
-            import anthropic
-            client = anthropic.AsyncAnthropic(api_key=api_key)
-            async with asyncio.timeout(TIMEOUT):
-                message = await client.messages.create(
-                    model="claude-3-5-sonnet-20241022",
-                    max_tokens=150,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-            return message.content[0].text.strip()
-        except asyncio.TimeoutError:
-            logger.warning(f"Claude attempt {attempt} timed out")
-        except Exception as e:
-            logger.warning(f"Claude attempt {attempt} failed: {e}")
-        if attempt < MAX_RETRIES:
-            await asyncio.sleep(2 ** attempt)
-    return FALLBACK
-
-
-async def query_gpt4o(prompt: str) -> str:
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    if not api_key:
-        logger.warning("OPENAI_API_KEY not set, returning fallback for GPT-4o")
-        return FALLBACK
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            from openai import AsyncOpenAI
-            client = AsyncOpenAI(api_key=api_key)
-            async with asyncio.timeout(TIMEOUT):
-                response = await client.chat.completions.create(
-                    model="gpt-4o",
-                    max_tokens=150,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-            return response.choices[0].message.content.strip()
-        except asyncio.TimeoutError:
-            logger.warning(f"GPT-4o attempt {attempt} timed out")
-        except Exception as e:
-            logger.warning(f"GPT-4o attempt {attempt} failed: {e}")
-        if attempt < MAX_RETRIES:
-            await asyncio.sleep(2 ** attempt)
-    return FALLBACK
-
-
-async def query_gemini(prompt: str) -> str:
-    api_key = os.getenv("GOOGLE_API_KEY", "")
-    if not api_key:
-        logger.warning("GOOGLE_API_KEY not set, returning fallback for Gemini")
-        return FALLBACK
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            async with asyncio.timeout(TIMEOUT):
-                response = await asyncio.get_event_loop().run_in_executor(
+            loop = asyncio.get_event_loop()
+            response = await asyncio.wait_for(
+                loop.run_in_executor(
                     None,
-                    lambda: model.generate_content(
-                        prompt,
-                        generation_config=genai.types.GenerationConfig(max_output_tokens=150),
+                    lambda: self.anthropic_client.messages.create(
+                        model='claude-3-5-sonnet-20241022',
+                        max_tokens=150,
+                        messages=[{'role': 'user', 'content': prompt}],
                     ),
-                )
-            return response.text.strip()
+                ),
+                timeout=30,
+            )
+            return response.content[0].text[:250]
         except asyncio.TimeoutError:
-            logger.warning(f"Gemini attempt {attempt} timed out")
+            logger.warning('Claude query timed out')
+            return 'Claude response timed out.'
         except Exception as e:
-            logger.warning(f"Gemini attempt {attempt} failed: {e}")
-        if attempt < MAX_RETRIES:
-            await asyncio.sleep(2 ** attempt)
-    return FALLBACK
+            logger.error(f'Claude query error: {e}')
+            raise
 
-
-async def query_groq(prompt: str) -> str:
-    api_key = os.getenv("GROQ_API_KEY", "")
-    if not api_key:
-        logger.warning("GROQ_API_KEY not set, returning fallback for Groq/Llama")
-        return FALLBACK
-    for attempt in range(1, MAX_RETRIES + 1):
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
+    async def _query_gpt4o(self, prompt: str) -> str:
+        """Query GPT-4o with retry."""
         try:
-            from groq import AsyncGroq
-            client = AsyncGroq(api_key=api_key)
-            async with asyncio.timeout(TIMEOUT):
-                response = await client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
+            response = await asyncio.wait_for(
+                self.openai_client.chat.completions.create(
+                    model='gpt-4o',
                     max_tokens=150,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-            return response.choices[0].message.content.strip()
+                    messages=[{'role': 'user', 'content': prompt}],
+                ),
+                timeout=30,
+            )
+            return response.choices[0].message.content[:250]
         except asyncio.TimeoutError:
-            logger.warning(f"Groq attempt {attempt} timed out")
+            logger.warning('GPT-4o query timed out')
+            return 'GPT-4o response timed out.'
         except Exception as e:
-            logger.warning(f"Groq attempt {attempt} failed: {e}")
-        if attempt < MAX_RETRIES:
-            await asyncio.sleep(2 ** attempt)
-    return FALLBACK
+            logger.error(f'GPT-4o query error: {e}')
+            raise
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
+    async def _query_gemini(self, prompt: str) -> str:
+        """Query Gemini with retry."""
+        try:
+            loop = asyncio.get_event_loop()
+            response = await asyncio.wait_for(
+                loop.run_in_executor(
+                    None,
+                    lambda: genai.GenerativeModel('gemini-pro').generate_content(prompt),
+                ),
+                timeout=30,
+            )
+            return response.text[:250]
+        except asyncio.TimeoutError:
+            logger.warning('Gemini query timed out')
+            return 'Gemini response timed out.'
+        except Exception as e:
+            logger.error(f'Gemini query error: {e}')
+            raise
 
-async def query_all_providers(prompt: str) -> Dict[str, str]:
-    tasks = {
-        "Claude": query_claude(prompt),
-        "GPT-4o": query_gpt4o(prompt),
-        "Gemini": query_gemini(prompt),
-        "Groq/Llama": query_groq(prompt),
-    }
-    results = await asyncio.gather(*tasks.values(), return_exceptions=True)
-    output = {}
-    for provider, result in zip(tasks.keys(), results):
-        if isinstance(result, Exception):
-            logger.error(f"{provider} raised exception: {result}")
-            output[provider] = FALLBACK
-        else:
-            output[provider] = result
-    return output
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
+    async def _query_groq(self, prompt: str) -> str:
+        """Query Groq with retry."""
+        try:
+            loop = asyncio.get_event_loop()
+            response = await asyncio.wait_for(
+                loop.run_in_executor(
+                    None,
+                    lambda: self.groq_client.chat.completions.create(
+                        model='mixtral-8x7b-32768',
+                        max_tokens=150,
+                        messages=[{'role': 'user', 'content': prompt}],
+                    ),
+                ),
+                timeout=30,
+            )
+            return response.choices[0].message.content[:250]
+        except asyncio.TimeoutError:
+            logger.warning('Groq query timed out')
+            return 'Groq response timed out.'
+        except Exception as e:
+            logger.error(f'Groq query error: {e}')
+            raise
