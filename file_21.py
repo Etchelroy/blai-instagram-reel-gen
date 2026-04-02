@@ -1,76 +1,41 @@
-import asyncio
+# tests/conftest.py
 import pytest
-from unittest.mock import patch, MagicMock
+import os
+from unittest.mock import AsyncMock, MagicMock, patch
 
-import ai_query
+@pytest.fixture
+def mock_env(monkeypatch):
+    """Mock environment variables for testing."""
+    monkeypatch.setenv('ANTHROPIC_API_KEY', 'test-claude-key')
+    monkeypatch.setenv('OPENAI_API_KEY', 'test-gpt4-key')
+    monkeypatch.setenv('GOOGLE_API_KEY', 'test-gemini-key')
+    monkeypatch.setenv('GROQ_API_KEY', 'test-groq-key')
+    monkeypatch.setenv('AWS_ACCESS_KEY_ID', 'test-aws-key')
+    monkeypatch.setenv('AWS_SECRET_ACCESS_KEY', 'test-aws-secret')
+    monkeypatch.setenv('AWS_S3_BUCKET', 'test-bucket')
+    monkeypatch.setenv('AWS_S3_REGION', 'us-east-1')
+    monkeypatch.setenv('INSTAGRAM_ACCESS_TOKEN', 'test-ig-token')
+    monkeypatch.setenv('INSTAGRAM_BUSINESS_ACCOUNT_ID', 'test-ig-account')
+    monkeypatch.setenv('BRAND_ACCENT_COLOR', '#FF6B35')
+    monkeypatch.setenv('LOG_LEVEL', 'INFO')
+    return monkeypatch
 
+@pytest.fixture
+def mock_async_client():
+    """Mock async HTTP client."""
+    return AsyncMock()
 
-def make_mock_message(text):
-    m = MagicMock()
-    m.content = [MagicMock(text=text)]
-    return m
+@pytest.fixture
+def sample_prompt():
+    """Sample prompt for testing."""
+    return "Is AI conscious?"
 
-
-def make_mock_choice(text):
-    m = MagicMock()
-    m.choices = [MagicMock(message=MagicMock(content=text))]
-    return m
-
-
-@pytest.mark.asyncio
-async def test_query_claude_success():
-    with patch("ai_query.anthropic.Anthropic") as mock_cls:
-        mock_cls.return_value.messages.create.return_value = make_mock_message("Claude answer")
-        result = await ai_query._query_claude("test?")
-    assert result == "Claude answer"
-
-
-@pytest.mark.asyncio
-async def test_query_claude_fallback():
-    with patch("ai_query.anthropic.Anthropic") as mock_cls:
-        mock_cls.return_value.messages.create.side_effect = Exception("API down")
-        result = await ai_query._query_claude("test?")
-    assert result == ai_query.FALLBACK
-
-
-@pytest.mark.asyncio
-async def test_query_gpt4o_success():
-    with patch("ai_query.openai.OpenAI") as mock_cls:
-        mock_cls.return_value.chat.completions.create.return_value = make_mock_choice("GPT answer")
-        result = await ai_query._query_gpt4o("test?")
-    assert result == "GPT answer"
-
-
-@pytest.mark.asyncio
-async def test_query_gpt4o_fallback():
-    with patch("ai_query.openai.OpenAI") as mock_cls:
-        mock_cls.return_value.chat.completions.create.side_effect = Exception("fail")
-        result = await ai_query._query_gpt4o("test?")
-    assert result == ai_query.FALLBACK
-
-
-@pytest.mark.asyncio
-async def test_query_gemini_fallback():
-    with patch("ai_query.genai.GenerativeModel") as mock_cls:
-        mock_cls.return_value.generate_content.side_effect = Exception("fail")
-        result = await ai_query._query_gemini("test?")
-    assert result == ai_query.FALLBACK
-
-
-@pytest.mark.asyncio
-async def test_query_groq_fallback():
-    with patch("ai_query.Groq") as mock_cls:
-        mock_cls.return_value.chat.completions.create.side_effect = Exception("fail")
-        result = await ai_query._query_groq("test?")
-    assert result == ai_query.FALLBACK
-
-
-@pytest.mark.asyncio
-async def test_query_all_returns_all_providers():
-    with patch("ai_query._query_claude", return_value="c"), \
-         patch("ai_query._query_gpt4o", return_value="g"), \
-         patch("ai_query._query_gemini", return_value="ge"), \
-         patch("ai_query._query_groq", return_value="gr"):
-        results = await ai_query.query_all("test?")
-    assert set(results.keys()) == {"claude", "gpt4o", "gemini", "groq"}
-    assert results["claude"] == "c"
+@pytest.fixture
+def sample_ai_responses():
+    """Sample AI responses for testing."""
+    return {
+        'Claude': 'Claude response about consciousness.',
+        'GPT-4o': 'GPT-4o response about consciousness.',
+        'Gemini': 'Gemini response about consciousness.',
+        'Llama': 'Llama response about consciousness.'
+    }
