@@ -1,0 +1,6 @@
+2024-01-15 10:30:45 [INFO] config: Config loaded successfully
+2024-01-15 10:30:46 [INFO] __main__: Querying AI models with prompt: Is AI conscious?
+2024-01-15 10:30:55 [INFO] ai_query: Received 4 AI responses
+2024-01-15 10:31:02 [INFO] renderer: Reel saved to output/reel.mp4
+2024-01-15 10:31:05 [INFO] audio: Audio mixed: output/reel.mp4
+2024-01-15 10:31:08 [INFO] poster: Posting to Instagram... (DRY RUN)
