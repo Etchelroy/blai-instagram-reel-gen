@@ -1,0 +1,9 @@
+# Instagram Reel Generator
+
+Generates Instagram Reels by querying multiple AI models (Claude, GPT-4o, Gemini, Groq) and compositing their responses into a 1080x1920 video with background music.
+
+## Setup
+
+1. Install dependencies:
+```bash
+pip install anthropic openai google-generativeai groq moviepy pillow boto3 requests python-dotenv pytest pytest-asyncio aiohttp tenacity
