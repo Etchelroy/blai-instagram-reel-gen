@@ -1,13 +1,2 @@
 
-# filename: README.md
-```markdown
-# Instagram Reel Generator
-
-Generate branded Instagram Reels from a text prompt using 4 AI providers simultaneously.
-
-## Setup
-
-```bash
-pip install anthropic openai google-generativeai groq moviepy pillow boto3 requests python-dotenv pytest pytest-asyncio aiohttp tenacity
-cp .env.example .env
-# Fill in your API keys in .env
+STATUS: DONE
