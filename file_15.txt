@@ -1,0 +1,28 @@
+
+# filename: config.py
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "")
+
+INSTAGRAM_ACCESS_TOKEN = os.getenv("INSTAGRAM_ACCESS_TOKEN", "")
+INSTAGRAM_USER_ID = os.getenv("INSTAGRAM_USER_ID", "")
+
+BACKGROUND_MUSIC_PATH = os.getenv("BACKGROUND_MUSIC_PATH", "assets/background.mp3")
+MUSIC_VOLUME = float(os.getenv("MUSIC_VOLUME", "0.15"))
+
+VIDEO_WIDTH = 1080
+VIDEO_HEIGHT = 1920
+CARD_DURATION = 4
+FADE_DURATION = 0.5
