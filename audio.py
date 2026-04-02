@@ -1,63 +1,85 @@
 import logging
-import os
 from pathlib import Path
+from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
 
-logger = logging.getLogger("audio")
-
-MUSIC_VOLUME = 0.15
+logger = logging.getLogger(__name__)
 
 
-def overlay_music(video_path: str, music_path: str, output_path: str = None) -> str:
-    if output_path is None:
-        p = Path(video_path)
-        output_path = str(p.parent / (p.stem + "_audio" + p.suffix))
+class AudioMixer:
+    """Mix background music with video or fallback to silent."""
 
-    if not os.path.exists(music_path):
-        logger.warning(
-            f"Music file '{music_path}' not found. Outputting silent video. "
-            "See README for music sourcing guidance."
-        )
-        # just copy video as-is
-        import shutil
-        if video_path != output_path:
-            shutil.copy2(video_path, output_path)
-        return output_path
+    def __init__(self, config):
+        self.config = config
+        self.music_file = Path(config.music_file)
 
-    try:
+    def mix(self, video_path: str) -> str:
+        """Mix audio or return silent video."""
         try:
-            from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
-        except ImportError:
-            from moviepy import VideoFileClip, AudioFileClip, CompositeAudioClip
+            # Load video
+            video = VideoFileClip(video_path)
 
-        video = VideoFileClip(video_path)
-        audio = AudioFileClip(music_path)
+            # Check if music file exists
+            if not self.music_file.exists():
+                logger.warning(f'Music file not found: {self.music_file}. Returning silent video.')
+                output_path = self.config.output_dir / 'reel_final.mp4'
+                video.write_videofile(
+                    str(output_path),
+                    fps=30,
+                    codec='libx264',
+                    audio_codec='aac',
+                    verbose=False,
+                    logger=None,
+                )
+                return str(output_path)
 
-        # loop or trim music to video length
-        video_duration = video.duration
-        if audio.duration < video_duration:
-            loops = int(video_duration / audio.duration) + 1
-            from moviepy.audio.AudioClip import concatenate_audioclips
-            audio = concatenate_audioclips([audio] * loops)
-        audio = audio.subclip(0, video_duration)
-        audio = audio.volumex(MUSIC_VOLUME)
+            # Load background music
+            music = AudioFileClip(str(self.music_file))
 
-        final = video.set_audio(audio)
-        final.write_videofile(
-            output_path,
-            fps=video.fps,
-            codec="libx264",
-            audio_codec="aac",
-            verbose=False,
-            logger=None,
-        )
-        video.close()
-        audio.close()
-        logger.info(f"Audio overlaid successfully: {output_path}")
-        return output_path
+            # Loop music to match video duration
+            if music.duration < video.duration:
+                num_loops = int(video.duration / music.duration) + 1
+                music_list = [music] * num_loops
+                from moviepy.editor import concatenate_audioclips
+                music = concatenate_audioclips(music_list).subclipped(0, video.duration)
+            else:
+                music = music.subclipped(0, video.duration)
 
-    except Exception as e:
-        logger.error(f"Failed to overlay audio: {e}. Falling back to silent video.")
-        import shutil
-        if video_path != output_path:
-            shutil.copy2(video_path, output_path)
-        return output_path
+            # Reduce music volume (mix at 30% volume)
+            music = music.volumex(0.3)
+
+            # Composite audio (video original + background music)
+            if video.audio:
+                audio_composite = CompositeAudioClip([video.audio, music])
+            else:
+                audio_composite = music
+
+            video = video.set_audio(audio_composite)
+
+            # Export
+            output_path = self.config.output_dir / 'reel_final.mp4'
+            video.write_videofile(
+                str(output_path),
+                fps=30,
+                codec='libx264',
+                audio_codec='aac',
+                verbose=False,
+                logger=None,
+            )
+
+            logger.info(f'Audio mixed successfully: {output_path}')
+            return str(output_path)
+
+        except Exception as e:
+            logger.error(f'Audio mixing error: {e}. Returning silent video.')
+            # Fallback: return silent video
+            video = VideoFileClip(video_path)
+            output_path = self.config.output_dir / 'reel_final.mp4'
+            video.write_videofile(
+                str(output_path),
+                fps=30,
+                codec='libx264',
+                audio_codec='aac',
+                verbose=False,
+                logger=None,
+            )
+            return str(output_path)
