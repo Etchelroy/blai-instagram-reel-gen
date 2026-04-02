@@ -1,6 +1,11 @@
+import warnings
+warnings.filterwarnings('ignore', message='.*pkg_resources.*')
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+
 import asyncio
 import logging
 from typing import List, Dict
+
 from anthropic import Anthropic
 from openai import AsyncOpenAI
 import google.generativeai as genai
