@@ -1,8 +1,21 @@
+import warnings
+warnings.filterwarnings('ignore', message='.*pkg_resources.*')
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+
 import asyncio
 import argparse
 import sys
 import logging
 from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    print("Error: python-dotenv is required but not installed.")
+    print("Install it with: pip install python-dotenv")
+    sys.exit(1)
+
 from config import Config
 from ai_query import AIQuery
 from renderer import ReelRenderer
