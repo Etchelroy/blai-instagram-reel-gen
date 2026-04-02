@@ -1,12 +1,14 @@
 import warnings
-warnings.filterwarnings('ignore', message='.*pkg_resources.*')
-warnings.filterwarnings('ignore', category=DeprecationWarning)
+warnings.simplefilter('ignore', DeprecationWarning)
+warnings.simplefilter('ignore', UserWarning)
 
 import asyncio
 import argparse
 import sys
 import logging
 from pathlib import Path
+import urllib3
+urllib3.disable_warnings()
 
 try:
     from dotenv import load_dotenv
